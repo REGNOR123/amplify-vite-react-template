@@ -7,23 +7,43 @@ const client = generateClient<Schema>();
 
 function App() {
   const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
-  const { signOut } = useAuthenticator();
+  const { user, signOut } = useAuthenticator(); // Get user info
+
   useEffect(() => {
-    client.models.Todo.observeQuery().subscribe({
+    if (!user) return;
+
+    // Filter todos by the user's ID
+    const subscription = client.models.Todo.observeQuery({
+      filter: { owner: { eq: user.username } }, // Assuming 'owner' stores the user ID
+    }).subscribe({
       next: (data) => setTodos([...data.items]),
     });
-  }, []);
+
+    return () => subscription.unsubscribe(); // Clean up subscription
+  }, [user]);
 
   function createTodo() {
-    client.models.Todo.create({ content: window.prompt("Todo content") });
+    const content = window.prompt("Todo content");
+    if (content) {
+      client.models.Todo.create({
+        content,
+        owner: user.username, // Ensure owner field is set
+      }).then(() => {
+        console.log("Todo created successfully");
+      }).catch((error) => {
+        console.error("Error creating todo:", error);
+      });
+    }
   }
 
   function deleteTodo(id: string) {
     client.models.Todo.delete({ id });
   }
+
   return (
     <main>
-      <h1>My todos</h1>
+      <h1>Welcome {user?.signInDetails?.loginId}</h1>
+      <p>Manage Your ToDo's</p>
       <button onClick={createTodo}>+ new</button>
       <ul>
         {todos.map((todo) => (
